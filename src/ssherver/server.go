@@ -70,6 +70,19 @@ var failedMsg = []byte(strings.Replace(`
 
 `, "\n", "\n\r", -1))
 
+var agentMsg = []byte(strings.Replace(`
+                      ***** WARNING ***** WARNING *****
+
+         You have SSH agent forwarding turned (universally?) on. That
+        is a VERY BAD idea. For example right now I have access to your
+        agent and I can use your keys however I want as long as you are
+       connected. I'm a good guy and I won't do anything, but ANY SERVER
+        YOU LOG IN TO AND ANYONE WITH ROOT ON THOSE SERVERS CAN LOGIN AS
+                                 YOU ANYWHERE.
+
+                       Read more:  http://git.io/vO2A6
+`, "\n", "\n\r", -1))
+
 type sessionInfo struct {
 	User string
 	Keys []ssh.PublicKey
@@ -161,21 +174,31 @@ func (s *Server) Handle(nConn net.Conn) {
 			continue
 		}
 
+		// "auth-agent-req@openssh.com" is always the first request sent
+		agentFwdChan := make(chan bool, 1)
+
 		go func(in <-chan *ssh.Request) {
 			for req := range in {
 				le.RequestTypes = append(le.RequestTypes, req.Type)
 				ok := false
 				switch req.Type {
 				case "shell":
-					ok = true
+					fallthrough
 				case "pty-req":
 					ok = true
+					agentFwdChan <- false
+				case "auth-agent-req@openssh.com":
+					agentFwdChan <- true
 				}
 				if req.WantReply {
 					req.Reply(ok, nil)
 				}
 			}
 		}(requests)
+
+		if <-agentFwdChan {
+			channel.Write(agentMsg)
+		}
 
 		user, err := s.findUser(si.Keys)
 		if err != nil {
