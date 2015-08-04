@@ -23,9 +23,10 @@ All the interesting bits are in [server.go](https://github.com/FiloSottile/whost
 
 If this behavior is problematic for you, you can tell ssh not to present your public keys to the server by default.
 
-Add this line to your `~/.ssh/config`
+Add these lines to your `~/.ssh/config`
 
 ```
+PubkeyAuthentication no
 IdentitiesOnly yes
 ```
 
@@ -33,12 +34,15 @@ And then specify what keys should be used for each host
 
 ```
 Host example.com
-  IdentityFile ~/.ssh/id_rsa
+    PubkeyAuthentication yes
+    IdentityFile ~/.ssh/id_rsa
+    # IdentitiesOnly yes # Enable ssh-agent (PKCS11 etc.) keys
 ```
 
 If you want you can use different keys so that they can't be linked together
 
 ```
 Host github.com
-  IdentityFile ~/.ssh/github_id_rsa
+    PubkeyAuthentication yes
+    IdentityFile ~/.ssh/github_id_rsa
 ```
