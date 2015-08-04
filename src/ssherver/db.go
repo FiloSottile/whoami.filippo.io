@@ -11,6 +11,10 @@ import (
 
 func (s *Server) findUser(keys []ssh.PublicKey) (string, error) {
 	for _, pk := range keys {
+		if pk.Type() != "ssh-rsa" {
+			continue
+		}
+
 		// Don't judge me, judge the ssh.PublicKey interface. And me. A bit.
 		k := (*rsa.PublicKey)(unsafe.Pointer(reflect.ValueOf(pk).Elem().UnsafeAddr()))
 
