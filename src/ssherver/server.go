@@ -27,7 +27,7 @@ var termTmpl = template.Must(template.New("termTmpl").Parse(strings.Replace(`
     |                                                                     |
     |  That's how we know you are @{{ .User }} on GitHub!
     |                                                                     |
-    |  Ah, maybe what you did't know is that GitHub publishes all users'  |
+    |  Ah, maybe what you didn't know is that GitHub publishes all users' |
     |  ssh public keys and Ben (benjojo.co.uk) grabbed them all.          |
     |                                                                     |
     |  That's pretty handy at times :) for example your key is at         |
