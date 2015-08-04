@@ -23,11 +23,12 @@ All the interesting bits are in [server.go](https://github.com/FiloSottile/whost
 
 If this behavior is problematic for you, you can tell ssh not to present your public keys to the server by default.
 
-Add these lines to your `~/.ssh/config`
+Add these lines at the end of your `~/.ssh/config` (after other "Host" directives)
 
 ```
-PubkeyAuthentication no
-IdentitiesOnly yes
+Host *
+    PubkeyAuthentication no
+    IdentitiesOnly yes
 ```
 
 And then specify what keys should be used for each host
