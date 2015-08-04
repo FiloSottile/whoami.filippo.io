@@ -18,3 +18,27 @@ This is a pretty vanilla `golang.org/x/crypto/ssh` Go server that will advertise
 Then it just lets you open a shell+PTY, uses the public keys and Ben's database to find your username, asks the GitHub API your real name, prints all that and close the terminal.  
 
 All the interesting bits are in [server.go](https://github.com/FiloSottile/whosthere/blob/master/src/ssherver/server.go).
+
+## How do I stop it?
+
+If this behavior is problematic for you, you can tell ssh not to present your public keys to the server by default.
+
+Add this line to your `~/.ssh/config`
+
+```
+IdentitiesOnly yes
+```
+
+And then specify what keys should be used for each host
+
+```
+Host example.com
+  IdentityFile ~/.ssh/id_rsa
+```
+
+If you want you can use different keys so that they can't be linked together
+
+```
+Host github.com
+  IdentityFile ~/.ssh/github_id_rsa
+```
