@@ -219,14 +219,14 @@ func (s *Server) Handle(nConn net.Conn) {
 		}
 
 		le.GitHub = user
-		ui, err := s.getUserInfo(user)
+		name, err := s.getUserName(user)
 		if err != nil {
-			le.Error = "getUserInfo failed: " + err.Error()
+			le.Error = "getUserName failed: " + err.Error()
 			channel.Close()
 			continue
 		}
 
-		termTmpl.Execute(channel, ui)
+		termTmpl.Execute(channel, struct{ Name, User string }{name, user})
 
 		channel.Close()
 	}
