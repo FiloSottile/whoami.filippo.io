@@ -2,12 +2,15 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
-	"log"
+	"fmt"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"github.com/google/go-github/github"
 	"golang.org/x/crypto/ssh"
@@ -100,10 +103,24 @@ func (s *Server) KeyboardInteractiveCallback(ssh.ConnMetadata, ssh.KeyboardInter
 	return nil, nil
 }
 
+type logEntry struct {
+	Timestamp     string
+	Username      string
+	ChannelTypes  []string
+	RequestTypes  []string
+	Error         string
+	KeysOffered   []string
+	GitHub        string
+	ClientVersion string
+}
+
 func (s *Server) Handle(nConn net.Conn) {
+	le := &logEntry{Timestamp: time.Now().Format(time.RFC3339)}
+	defer json.NewEncoder(os.Stdout).Encode(le)
+
 	conn, chans, reqs, err := ssh.NewServerConn(nConn, s.sshConfig)
 	if err != nil {
-		log.Println("[ERR] Handshake failed:", err)
+		le.Error = "Handshake failed: " + err.Error()
 		return
 	}
 	defer func() {
@@ -112,21 +129,41 @@ func (s *Server) Handle(nConn net.Conn) {
 		s.mu.Unlock()
 		conn.Close()
 	}()
-	go ssh.DiscardRequests(reqs)
+	go func(in <-chan *ssh.Request) {
+		for req := range in {
+			le.RequestTypes = append(le.RequestTypes, req.Type)
+			if req.WantReply {
+				req.Reply(false, nil)
+			}
+		}
+	}(reqs)
+
+	s.mu.RLock()
+	si := s.sessionInfo[string(conn.SessionID())]
+	s.mu.RUnlock()
+
+	le.Username = conn.User()
+	le.ClientVersion = fmt.Sprintf("%x", conn.ClientVersion())
+	for _, key := range si.Keys {
+		le.KeysOffered = append(le.KeysOffered, string(ssh.MarshalAuthorizedKey(key)))
+	}
 
 	for newChannel := range chans {
+		le.ChannelTypes = append(le.ChannelTypes, newChannel.ChannelType())
+
 		if newChannel.ChannelType() != "session" {
 			newChannel.Reject(ssh.UnknownChannelType, "unknown channel type")
 			continue
 		}
 		channel, requests, err := newChannel.Accept()
 		if err != nil {
-			log.Println("[ERR] Channel accept failed:", err)
+			le.Error = "Channel accept failed: " + err.Error()
 			continue
 		}
 
 		go func(in <-chan *ssh.Request) {
 			for req := range in {
+				le.RequestTypes = append(le.RequestTypes, req.Type)
 				ok := false
 				switch req.Type {
 				case "shell":
@@ -134,17 +171,15 @@ func (s *Server) Handle(nConn net.Conn) {
 				case "pty-req":
 					ok = true
 				}
-				req.Reply(ok, nil)
+				if req.WantReply {
+					req.Reply(ok, nil)
+				}
 			}
 		}(requests)
 
-		s.mu.RLock()
-		si := s.sessionInfo[string(conn.SessionID())]
-		s.mu.RUnlock()
-
 		user, err := s.findUser(si.Keys)
 		if err != nil {
-			log.Println("[ERR] findUser failed:", err)
+			le.Error = "findUser failed: " + err.Error()
 			channel.Close()
 			continue
 		}
@@ -154,18 +189,16 @@ func (s *Server) Handle(nConn net.Conn) {
 			for _, key := range si.Keys {
 				channel.Write(ssh.MarshalAuthorizedKey(key))
 				channel.Write([]byte("\r"))
-				log.Print(string(ssh.MarshalAuthorizedKey(key)))
 			}
 			channel.Write([]byte("\n\r"))
 			channel.Close()
 			continue
 		}
 
-		log.Println(user)
-
+		le.GitHub = user
 		ui, err := s.getUserInfo(user)
 		if err != nil {
-			log.Println("[ERR] getUserInfo failed:", err)
+			le.Error = "getUserInfo failed: " + err.Error()
 			channel.Close()
 			continue
 		}
