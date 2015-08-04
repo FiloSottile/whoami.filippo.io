@@ -2,6 +2,20 @@
 	"version": 0,
 	"dependencies": [
 		{
+			"importpath": "github.com/google/go-github/github",
+			"repository": "https://github.com/google/go-github",
+			"revision": "800345634beceb9b499012319eb8bf97fd97a298",
+			"branch": "master",
+			"path": "/github"
+		},
+		{
+			"importpath": "github.com/google/go-querystring/query",
+			"repository": "https://github.com/google/go-querystring",
+			"revision": "547ef5ac979778feb2f760cdb5f4eae1a2207b86",
+			"branch": "master",
+			"path": "/query"
+		},
+		{
 			"importpath": "golang.org/x/crypto/ssh",
 			"repository": "https://go.googlesource.com/crypto",
 			"revision": "77de70a8d459abbd88b95faa92f4a69bd2f5a7d8",

@@ -9,17 +9,35 @@ import (
 	"sync"
 	"text/template"
 
+	"github.com/google/go-github/github"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
 )
 
 var termTmpl = template.Must(template.New("termTmpl").Parse(strings.Replace(`
-    +------------------------------------------
-    |
-    | _o/ Hello {{ .User }}
-    | {{range .Keys }}
-    | {{ printf "%x" .Marshal }} {{end}}
-    +------------------------------------------
+    +---------------------------------------------------------------------+
+    |                                                                     |
+    |             _o/ Hello {{ .Name }}!
+    |                                                                     |
+    |                                                                     |
+    |  Did you know that ssh sends all your public keys to any server     |
+    |  it tries to authenticate to?                                       |
+    |                                                                     |
+    |  That's how we know you are @{{ .User }} on GitHub!
+    |                                                                     |
+    |  Ah, maybe what you did't know is that GitHub publishes all users   |
+    |  ssh public keys and Ben (benjojo.co.uk) grabbed them all.          |
+    |                                                                     |
+    |  That's pretty handy at times :) for example your key is at         |
+    |  https://github.com/{{ .User }}.keys
+    |                                                                     |
+    |                                                                     |
+    |  BTW, this whole thingy is Open Source! (And written in Go!)        |
+    |  https://github.com/FiloSottile/whosthere                           |
+    |                                                                     |
+    |  -- @FiloSottile (https://twitter.com/FiloSottile)                  |
+    |                                                                     |
+    +---------------------------------------------------------------------+
 
 `, "\n", "\n\r", -1)))
 
@@ -35,7 +53,8 @@ type sessionInfo struct {
 }
 
 type Server struct {
-	sshConfig *ssh.ServerConfig
+	githubClient *github.Client
+	sshConfig    *ssh.ServerConfig
 
 	mu          sync.RWMutex
 	sessionInfo map[string]sessionInfo
@@ -92,8 +111,17 @@ func (s *Server) Handle(nConn net.Conn) {
 		}(requests)
 
 		s.mu.RLock()
-		termTmpl.Execute(channel, s.sessionInfo[string(conn.SessionID())])
+		// s.sessionInfo[string(conn.SessionID())]
+		ui, err := s.getUserInfo("FiloSottile")
 		s.mu.RUnlock()
+
+		if err != nil {
+			log.Println("getUserInfo failed:", err)
+			channel.Close()
+			continue
+		}
+
+		termTmpl.Execute(channel, ui)
 
 		channel.Close()
 	}
@@ -101,6 +129,10 @@ func (s *Server) Handle(nConn net.Conn) {
 
 type Config struct {
 	HostKey string `yaml:"HostKey"`
+
+	UserAgent    string `yaml:"UserAgent"`
+	GitHubID     string `yaml:"GitHubID"`
+	GitHubSecret string `yaml:"GitHubSecret"`
 }
 
 func main() {
@@ -109,8 +141,16 @@ func main() {
 	var C Config
 	fatalIfErr(yaml.Unmarshal(configText, &C))
 
+	t := &github.UnauthenticatedRateLimitedTransport{
+		ClientID:     C.GitHubID,
+		ClientSecret: C.GitHubSecret,
+	}
+	GitHubClient := github.NewClient(t.Client())
+	GitHubClient.UserAgent = C.UserAgent
+
 	server := &Server{
-		sessionInfo: make(map[string]sessionInfo),
+		githubClient: GitHubClient,
+		sessionInfo:  make(map[string]sessionInfo),
 	}
 	server.sshConfig = &ssh.ServerConfig{
 		KeyboardInteractiveCallback: func(ssh.ConnMetadata, ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
