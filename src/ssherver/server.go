@@ -83,6 +83,19 @@ var agentMsg = []byte(strings.Replace(`
                        Read more:  http://git.io/vO2A6
 `, "\n", "\n\r", -1))
 
+var x11Msg = []byte(strings.Replace(`
+                      ***** WARNING ***** WARNING *****
+
+            You have X11 forwarding turned (universally?) on. That
+        is a VERY BAD idea. For example right now I have access to your
+          X11 server and I can access your desktop as long as you are
+       connected. I'm a good guy and I won't do anything, but ANY SERVER
+         YOU LOG IN TO AND ANYONE WITH ROOT ON THOSE SERVERS CAN SNIFF
+                  YOUR KEYSTROKES AND ACCESS YOUR WINDOWS.
+
+     Read more:  http://www.hackinglinuxexposed.com/articles/20040705.html
+`, "\n", "\n\r", -1))
+
 type sessionInfo struct {
 	User string
 	Keys []ssh.PublicKey
@@ -174,8 +187,10 @@ func (s *Server) Handle(nConn net.Conn) {
 			continue
 		}
 
-		// "auth-agent-req@openssh.com" is always the first request sent
-		agentFwdChan := make(chan bool, 1)
+		agentFwd, x11 := false, false
+		reqLock := &sync.Mutex{}
+		reqLock.Lock()
+		timeout := time.AfterFunc(30*time.Second, func() { reqLock.Unlock() })
 
 		go func(in <-chan *ssh.Request) {
 			for req := range in {
@@ -186,18 +201,31 @@ func (s *Server) Handle(nConn net.Conn) {
 					fallthrough
 				case "pty-req":
 					ok = true
-					agentFwdChan <- false
+
+					// "auth-agent-req@openssh.com" and "x11-req" always arrive
+					// before the "pty-req", so we can go ahead now
+					if timeout.Stop() {
+						reqLock.Unlock()
+					}
+
 				case "auth-agent-req@openssh.com":
-					agentFwdChan <- true
+					agentFwd = true
+				case "x11-req":
+					x11 = true
 				}
+
 				if req.WantReply {
 					req.Reply(ok, nil)
 				}
 			}
 		}(requests)
 
-		if <-agentFwdChan {
+		reqLock.Lock()
+		if agentFwd {
 			channel.Write(agentMsg)
+		}
+		if x11 {
+			channel.Write(x11Msg)
 		}
 
 		user, err := s.findUser(si.Keys)
