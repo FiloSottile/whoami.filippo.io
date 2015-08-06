@@ -22,8 +22,10 @@ var termTmpl = template.Must(template.New("termTmpl").Parse(strings.Replace(`
     |             _o/ Hello {{ .Name }}!
     |                                                                     |
     |                                                                     |
-    |  Did you know that ssh sends all your public keys to any server     |
-    |  it tries to authenticate to?                                       |
+    |  Did you know that ssh sends all of your agent-held public keys     |
+    |  as well as any keys found in .ssh matching the default key names   |
+    |  of id_rsa, id_dsa, id_ecdsa and id_ed25519 (if supported) to any   |
+    |  server it tries to authenticate to?                                |
     |                                                                     |
     |  That's how we know you are @{{ .User }} on GitHub!
     |                                                                     |
@@ -49,11 +51,13 @@ var failedMsg = []byte(strings.Replace(`
     |             _o/ Hello!                                              |
     |                                                                     |
     |                                                                     |
-    |  Did you know that ssh sends all your public keys to any server     |
-    |  it tries to authenticate to? You can see yours echoed below.       |
+    |  Did you know that ssh sends all of your agent-held public keys     |
+    |  as well as any keys found in .ssh matching the default key names   |
+    |  of id_rsa, id_dsa (always supported), id_ecdsa and id_ed25519 (if  |
+    |  supported) to any server it tries to authenticate to?              |
     |                                                                     |
-    |  We tried to use that to find your GitHub username, but we          |
-    |  couldn't :( maybe you don't even have GitHub ssh keys, do you?     |
+    |  We tried to use those public keys to find your GitHub username,    |
+    |  but couldn't :( maybe you don't even have GitHub ssh keys, do you? |
     |                                                                     |
     |  By the way, did you know that GitHub publishes all users'          |
     |  ssh public keys and Ben (benjojo.co.uk) grabbed them all?          |
