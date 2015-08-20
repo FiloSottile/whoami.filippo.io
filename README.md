@@ -31,7 +31,7 @@ Host *
     IdentitiesOnly yes
 ```
 
-And then specify what keys should be used for each host
+and then specify what keys should be used for each host
 
 ```
 Host example.com
@@ -40,11 +40,12 @@ Host example.com
     # IdentitiesOnly yes # Enable ssh-agent (PKCS11 etc.) keys
 ```
 
-If you want you can use different keys so that they can't be linked together
+Or, if you want to use different keys so that they can't be linked together:
 
 ```
 Host *
-    PubkeyAuthentication yes
+    # Only use identity files, not any identity loaded in ssh-agent
+    IdentitiesOnly yes
     # Define pattern for the names of identity files by host
     IdentityFile %d/.ssh/%h.rsa
     IdentityFile %d/.ssh/%h.dsa
