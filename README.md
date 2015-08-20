@@ -37,7 +37,6 @@ and then specify what keys should be used for each host
 Host example.com
     PubkeyAuthentication yes
     IdentityFile ~/.ssh/id_rsa
-    # IdentitiesOnly yes # Enable ssh-agent (PKCS11 etc.) keys
 ```
 
 Or, if you want to use different keys so that they can't be linked together:
