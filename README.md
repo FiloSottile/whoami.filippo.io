@@ -31,7 +31,9 @@ Host *
     IdentitiesOnly yes
 ```
 
-and then specify what keys should be used for each host:
+and above this block (the first matching option is applied,
+`Host \*` directives must come last),
+specify what keys should be used for each host:
 
 ```
 Host example.com
