@@ -43,7 +43,13 @@ Host example.com
 If you want you can use different keys so that they can't be linked together
 
 ```
-Host github.com
+Host *
     PubkeyAuthentication yes
-    IdentityFile ~/.ssh/github_id_rsa
+    # Define pattern for the names of identity files by host
+    IdentityFile %d/.ssh/%h.rsa
+    IdentityFile %d/.ssh/%h.dsa
+    IdentityFile %d/.ssh/%h.ecdsa
+    # %d = local user's home directory
+    # %h = remote host name
+    # See IdentityFile section in `man ssh_config` for alternatives.
 ```
