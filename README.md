@@ -31,7 +31,7 @@ Host *
     IdentitiesOnly yes
 ```
 
-and then specify what keys should be used for each host
+and then specify what keys should be used for each host:
 
 ```
 Host example.com
