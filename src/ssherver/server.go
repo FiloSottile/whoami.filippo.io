@@ -99,16 +99,15 @@ var x11Msg = []byte(strings.Replace(`
 var roamingMsg = []byte(strings.Replace(`
                       ***** WARNING ***** WARNING *****
 
-    You have roaming turned on. If you are using OpenSSH that most likely
+    You have roaming turned on. If you are using OpenSSH, that most likely
        means you are vulnerable to the CVE-2016-0777 information leak.
 
-     This means that any server you connected to might have obtained your
-  (encrypted) private keys, unless they were always only loaded via an agent.
+   THIS MEANS THAT ANY SERVER YOU CONNECT TO MIGHT OBTAIN YOUR PRIVATE KEYS.
 
      Add "UseRoaming no" to the "Host *" section of your ~/.ssh/config or
            /etc/ssh/ssh_config file, rotate keys and update ASAP.
 
-                    Read more:  https://goo.gl/GFKPY7
+Read more:  https://www.qualys.com/2016/01/14/cve-2016-0777-cve-2016-0778/openssh-cve-2016-0777-cve-2016-0778.txt
 `, "\n", "\n\r", -1))
 
 type sessionInfo struct {
@@ -170,9 +169,13 @@ func (s *Server) Handle(nConn net.Conn) {
 		time.Sleep(500 * time.Millisecond)
 		conn.Close()
 	}()
+	roaming := false
 	go func(in <-chan *ssh.Request) {
 		for req := range in {
 			le.RequestTypes = append(le.RequestTypes, req.Type)
+			if req.Type == "roaming@appgate.com" {
+				roaming = true
+			}
 			if req.WantReply {
 				req.Reply(false, nil)
 			}
@@ -201,7 +204,7 @@ func (s *Server) Handle(nConn net.Conn) {
 		}
 		defer channel.Close()
 
-		agentFwd, x11, roaming := false, false, false
+		agentFwd, x11 := false, false
 		reqLock := &sync.Mutex{}
 		reqLock.Lock()
 		timeout := time.AfterFunc(30*time.Second, func() { reqLock.Unlock() })
@@ -226,8 +229,6 @@ func (s *Server) Handle(nConn net.Conn) {
 					agentFwd = true
 				case "x11-req":
 					x11 = true
-				case "roaming@appgate.com":
-					roaming = true
 				}
 
 				if req.WantReply {
