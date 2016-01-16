@@ -36,7 +36,7 @@ var supportedKexAlgos = []string{
 	// P384 and P521 are not constant-time yet, but since we don't
 	// reuse ephemeral keys, using them for ECDH should be OK.
 	kexAlgoECDH256, kexAlgoECDH384, kexAlgoECDH521,
-	kexAlgoDH14SHA1, kexAlgoDH1SHA1,
+	kexAlgoDH14SHA1, kexAlgoDH1SHA1, "resume@appgate.com",
 }
 
 // supportedKexAlgos specifies the supported host-key algorithms (i.e. methods

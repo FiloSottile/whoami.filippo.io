@@ -96,6 +96,21 @@ var x11Msg = []byte(strings.Replace(`
      Read more:  http://www.hackinglinuxexposed.com/articles/20040705.html
 `, "\n", "\n\r", -1))
 
+var roamingMsg = []byte(strings.Replace(`
+                      ***** WARNING ***** WARNING *****
+
+    You have roaming turned on. If you are using OpenSSH that most likely
+       means you are vulnerable to the CVE-2016-0777 information leak.
+
+     This means that any server you connected to might have obtained your
+  (encrypted) private keys, unless they were always only loaded via an agent.
+
+     Add "UseRoaming no" to the "Host *" section of your ~/.ssh/config or
+           /etc/ssh/ssh_config file, rotate keys and update ASAP.
+
+                    Read more:  https://goo.gl/GFKPY7
+`, "\n", "\n\r", -1))
+
 type sessionInfo struct {
 	User string
 	Keys []ssh.PublicKey
@@ -186,7 +201,7 @@ func (s *Server) Handle(nConn net.Conn) {
 		}
 		defer channel.Close()
 
-		agentFwd, x11 := false, false
+		agentFwd, x11, roaming := false, false, false
 		reqLock := &sync.Mutex{}
 		reqLock.Lock()
 		timeout := time.AfterFunc(30*time.Second, func() { reqLock.Unlock() })
@@ -211,6 +226,8 @@ func (s *Server) Handle(nConn net.Conn) {
 					agentFwd = true
 				case "x11-req":
 					x11 = true
+				case "roaming@appgate.com":
+					roaming = true
 				}
 
 				if req.WantReply {
@@ -225,6 +242,9 @@ func (s *Server) Handle(nConn net.Conn) {
 		}
 		if x11 {
 			channel.Write(x11Msg)
+		}
+		if roaming {
+			channel.Write(roamingMsg)
 		}
 
 		user, err := s.findUser(si.Keys)
