@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
+	_ "net/http/pprof"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/go-github/github"
@@ -28,6 +30,7 @@ type Config struct {
 	MySQL string `yaml:"MySQL"`
 
 	Listen string `yaml:"Listen"`
+	Debug  string `yaml:"Debug"`
 }
 
 func main() {
@@ -35,6 +38,10 @@ func main() {
 	fatalIfErr(err)
 	var C Config
 	fatalIfErr(yaml.Unmarshal(configText, &C))
+
+	go func() {
+		log.Println(http.ListenAndServe(C.Debug, nil))
+	}()
 
 	t := &github.UnauthenticatedRateLimitedTransport{
 		ClientID:     C.GitHubID,
