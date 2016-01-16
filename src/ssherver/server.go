@@ -146,13 +146,13 @@ func (s *Server) Handle(nConn net.Conn) {
 	conn, chans, reqs, err := ssh.NewServerConn(nConn, s.sshConfig)
 	if err != nil {
 		le.Error = "Handshake failed: " + err.Error()
-		nConn.Close()
 		return
 	}
 	defer func() {
 		s.mu.Lock()
 		delete(s.sessionInfo, string(conn.SessionID()))
 		s.mu.Unlock()
+		time.Sleep(500 * time.Millisecond)
 		conn.Close()
 	}()
 	go func(in <-chan *ssh.Request) {
