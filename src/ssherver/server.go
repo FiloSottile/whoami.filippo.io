@@ -132,7 +132,6 @@ func (s *Server) KeyboardInteractiveCallback(ssh.ConnMetadata, ssh.KeyboardInter
 type logEntry struct {
 	Timestamp     string
 	Username      string
-	ChannelTypes  []string
 	RequestTypes  []string
 	Error         string
 	KeysOffered   []string
@@ -147,6 +146,7 @@ func (s *Server) Handle(nConn net.Conn) {
 	conn, chans, reqs, err := ssh.NewServerConn(nConn, s.sshConfig)
 	if err != nil {
 		le.Error = "Handshake failed: " + err.Error()
+		nConn.Close()
 		return
 	}
 	defer func() {
@@ -175,8 +175,6 @@ func (s *Server) Handle(nConn net.Conn) {
 	}
 
 	for newChannel := range chans {
-		le.ChannelTypes = append(le.ChannelTypes, newChannel.ChannelType())
-
 		if newChannel.ChannelType() != "session" {
 			newChannel.Reject(ssh.UnknownChannelType, "unknown channel type")
 			continue
@@ -184,8 +182,9 @@ func (s *Server) Handle(nConn net.Conn) {
 		channel, requests, err := newChannel.Accept()
 		if err != nil {
 			le.Error = "Channel accept failed: " + err.Error()
-			continue
+			return
 		}
+		defer channel.Close()
 
 		agentFwd, x11 := false, false
 		reqLock := &sync.Mutex{}
@@ -231,8 +230,7 @@ func (s *Server) Handle(nConn net.Conn) {
 		user, err := s.findUser(si.Keys)
 		if err != nil {
 			le.Error = "findUser failed: " + err.Error()
-			channel.Close()
-			continue
+			return
 		}
 
 		if user == "" {
@@ -242,20 +240,17 @@ func (s *Server) Handle(nConn net.Conn) {
 				channel.Write([]byte("\r"))
 			}
 			channel.Write([]byte("\n\r"))
-			channel.Close()
-			continue
+			return
 		}
 
 		le.GitHub = user
 		name, err := s.getUserName(user)
 		if err != nil {
 			le.Error = "getUserName failed: " + err.Error()
-			channel.Close()
-			continue
+			return
 		}
 
 		termTmpl.Execute(channel, struct{ Name, User string }{name, user})
-
-		channel.Close()
+		return
 	}
 }
