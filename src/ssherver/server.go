@@ -104,8 +104,9 @@ var roamingMsg = []byte(strings.Replace(`
 
    THIS MEANS THAT ANY SERVER YOU CONNECT TO MIGHT OBTAIN YOUR PRIVATE KEYS.
 
-     Add "UseRoaming no" to the "Host *" section of your ~/.ssh/config or
-           /etc/ssh/ssh_config file, rotate keys and update ASAP.
+     Add "UseRoaming no" to the "Host *" section of your ~/.ssh/config,
+               /etc/ssh_config, or /etc/ssh/ssh_config file,
+                        rotate keys and update ASAP.
 
 Read more:  https://www.qualys.com/2016/01/14/cve-2016-0777-cve-2016-0778/openssh-cve-2016-0777-cve-2016-0778.txt
 `, "\n", "\n\r", -1))
