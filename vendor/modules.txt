@@ -1,10 +1,26 @@
 # github.com/go-sql-driver/mysql v0.0.0-20150620200312-fb7299726d2e
 github.com/go-sql-driver/mysql
+# github.com/golang/protobuf v1.2.0
+github.com/golang/protobuf/proto
 # github.com/google/go-github v0.0.0-20150803190236-800345634bec
 github.com/google/go-github/github
 # github.com/google/go-querystring v0.0.0-20150414214848-547ef5ac9797
 github.com/google/go-querystring/query
 # golang.org/x/crypto v0.0.0-20150802235345-77de70a8d459
 golang.org/x/crypto/ssh
+# golang.org/x/net v0.0.0-20180911220305-26e67e76b6c3
+golang.org/x/net/context
+golang.org/x/net/context/ctxhttp
+# golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be
+golang.org/x/oauth2
+golang.org/x/oauth2/internal
+# google.golang.org/appengine v1.1.0
+google.golang.org/appengine/urlfetch
+google.golang.org/appengine/internal
+google.golang.org/appengine/internal/urlfetch
+google.golang.org/appengine/internal/base
+google.golang.org/appengine/internal/datastore
+google.golang.org/appengine/internal/log
+google.golang.org/appengine/internal/remote_api
 # gopkg.in/yaml.v2 v2.0.0-20150624102902-7ad95dd0798a
 gopkg.in/yaml.v2

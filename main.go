@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"io/ioutil"
 	"log"
@@ -11,6 +12,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/go-github/github"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/oauth2"
 	"gopkg.in/yaml.v2"
 )
 
@@ -21,13 +23,9 @@ func fatalIfErr(err error) {
 }
 
 type Config struct {
-	HostKey string `yaml:"HostKey"`
-
-	UserAgent    string `yaml:"UserAgent"`
-	GitHubID     string `yaml:"GitHubID"`
-	GitHubSecret string `yaml:"GitHubSecret"`
-
-	MySQL string `yaml:"MySQL"`
+	HostKey     string `yaml:"HostKey"`
+	GitHubToken string `yaml:"GitHubToken"`
+	MySQL       string `yaml:"MySQL"`
 
 	Listen string `yaml:"Listen"`
 	Debug  string `yaml:"Debug"`
@@ -43,12 +41,11 @@ func main() {
 		log.Println(http.ListenAndServe(C.Debug, nil))
 	}()
 
-	t := &github.UnauthenticatedRateLimitedTransport{
-		ClientID:     C.GitHubID,
-		ClientSecret: C.GitHubSecret,
-	}
-	GitHubClient := github.NewClient(t.Client())
-	GitHubClient.UserAgent = C.UserAgent
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: C.GitHubToken},
+	)
+	tc := oauth2.NewClient(context.Background(), ts)
+	GitHubClient := github.NewClient(tc)
 
 	db, err := sql.Open("mysql", C.MySQL)
 	fatalIfErr(err)
