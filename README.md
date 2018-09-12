@@ -17,7 +17,7 @@ This is a pretty vanilla `golang.org/x/crypto/ssh` Go server that will advertise
 
 Then it just lets you open a shell+PTY, uses the public keys and Ben's database to find your username, asks the GitHub API your real name, prints all that and close the terminal.  
 
-All the interesting bits are in [server.go](https://github.com/FiloSottile/whosthere/blob/master/src/ssherver/server.go).
+All the interesting bits are in [server.go](https://github.com/FiloSottile/whosthere/blob/master/server.go).
 
 ## How do I stop it?
 
