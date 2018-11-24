@@ -3,17 +3,16 @@ package main
 import (
 	"context"
 	"database/sql"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/go-github/github"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/oauth2"
-	"gopkg.in/yaml.v2"
 )
 
 func fatalIfErr(err error) {
@@ -22,32 +21,18 @@ func fatalIfErr(err error) {
 	}
 }
 
-type Config struct {
-	HostKey     string `yaml:"HostKey"`
-	GitHubToken string `yaml:"GitHubToken"`
-	MySQL       string `yaml:"MySQL"`
-
-	Listen string `yaml:"Listen"`
-	Debug  string `yaml:"Debug"`
-}
-
 func main() {
-	configText, err := ioutil.ReadFile("config.yml")
-	fatalIfErr(err)
-	var C Config
-	fatalIfErr(yaml.Unmarshal(configText, &C))
-
 	go func() {
-		log.Println(http.ListenAndServe(C.Debug, nil))
+		log.Println(http.ListenAndServe(os.Getenv("LISTEN_DEBUG"), nil))
 	}()
 
 	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: C.GitHubToken},
+		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
 	)
 	tc := oauth2.NewClient(context.Background(), ts)
 	GitHubClient := github.NewClient(tc)
 
-	db, err := sql.Open("mysql", C.MySQL)
+	db, err := sql.Open("mysql", os.Getenv("MYSQL_DSN"))
 	fatalIfErr(err)
 	fatalIfErr(db.Ping())
 	_, err = db.Exec("SET NAMES UTF8")
@@ -65,11 +50,11 @@ func main() {
 		PublicKeyCallback:           server.PublicKeyCallback,
 	}
 
-	private, err := ssh.ParsePrivateKey([]byte(C.HostKey))
+	private, err := ssh.ParsePrivateKey([]byte(os.Getenv("SSH_HOST_KEY")))
 	fatalIfErr(err)
 	server.sshConfig.AddHostKey(private)
 
-	listener, err := net.Listen("tcp", C.Listen)
+	listener, err := net.Listen("tcp", os.Getenv("LISTEN_SSH"))
 	fatalIfErr(err)
 
 	for {
