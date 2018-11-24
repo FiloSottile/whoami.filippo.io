@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto"
 	"crypto/dsa"
 	"crypto/ecdsa"
@@ -27,7 +28,7 @@ func sshToCrypto(pk ssh.PublicKey) crypto.PublicKey {
 }
 
 func (s *Server) getUserName(user string) (string, error) {
-	u, _, err := s.githubClient.Users.Get(user)
+	u, _, err := s.githubClient.Users.Get(context.TODO(), user)
 	if err != nil {
 		return "", err
 	}

@@ -6,68 +6,81 @@
 package github
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
 
 // IssueEvent represents an event that occurred around an Issue or Pull Request.
 type IssueEvent struct {
-	ID  *int    `json:"id,omitempty"`
+	ID  *int64  `json:"id,omitempty"`
 	URL *string `json:"url,omitempty"`
 
 	// The User that generated this event.
 	Actor *User `json:"actor,omitempty"`
 
-	// Event identifies the actual type of Event that occurred.  Possible
+	// Event identifies the actual type of Event that occurred. Possible
 	// values are:
 	//
 	//     closed
-	//       The issue was closed by the actor. When the commit_id is
-	//       present, it identifies the commit that closed the issue using
-	//       “closes / fixes #NN” syntax.
-	//
-	//     reopened
-	//       The issue was reopened by the actor.
-	//
-	//     subscribed
-	//       The actor subscribed to receive notifications for an issue.
+	//       The Actor closed the issue.
+	//       If the issue was closed by commit message, CommitID holds the SHA1 hash of the commit.
 	//
 	//     merged
-	//       The issue was merged by the actor. The commit_id attribute is the SHA1 of the HEAD commit that was merged.
+	//       The Actor merged into master a branch containing a commit mentioning the issue.
+	//       CommitID holds the SHA1 of the merge commit.
 	//
 	//     referenced
-	//       The issue was referenced from a commit message. The commit_id attribute is the commit SHA1 of where that happened.
+	//       The Actor committed to master a commit mentioning the issue in its commit message.
+	//       CommitID holds the SHA1 of the commit.
+	//
+	//     reopened, unlocked
+	//       The Actor did that to the issue.
+	//
+	//     locked
+	//       The Actor locked the issue.
+	//       LockReason holds the reason of locking the issue (if provided while locking).
+	//
+	//     renamed
+	//       The Actor changed the issue title from Rename.From to Rename.To.
 	//
 	//     mentioned
-	//       The actor was @mentioned in an issue body.
+	//       Someone unspecified @mentioned the Actor [sic] in an issue comment body.
 	//
-	//     assigned
-	//       The issue was assigned to the actor.
+	//     assigned, unassigned
+	//       The Assigner assigned the issue to or removed the assignment from the Assignee.
 	//
-	//     head_ref_deleted
-	//       The pull request’s branch was deleted.
+	//     labeled, unlabeled
+	//       The Actor added or removed the Label from the issue.
 	//
-	//     head_ref_restored
-	//       The pull request’s branch was restored.
+	//     milestoned, demilestoned
+	//       The Actor added or removed the issue from the Milestone.
 	//
-	//     labeled
-	//       A label was added.
+	//     subscribed, unsubscribed
+	//       The Actor subscribed to or unsubscribed from notifications for an issue.
+	//
+	//     head_ref_deleted, head_ref_restored
+	//       The pull request’s branch was deleted or restored.
+	//
 	Event *string `json:"event,omitempty"`
-
-	// The SHA of the commit that referenced this commit, if applicable.
-	CommitID *string `json:"commit_id,omitempty"`
 
 	CreatedAt *time.Time `json:"created_at,omitempty"`
 	Issue     *Issue     `json:"issue,omitempty"`
 
-	// Only present on 'labeled' events
-	Label *Label `json:"label,omitempty"`
+	// Only present on certain events; see above.
+	Assignee   *User      `json:"assignee,omitempty"`
+	Assigner   *User      `json:"assigner,omitempty"`
+	CommitID   *string    `json:"commit_id,omitempty"`
+	Milestone  *Milestone `json:"milestone,omitempty"`
+	Label      *Label     `json:"label,omitempty"`
+	Rename     *Rename    `json:"rename,omitempty"`
+	LockReason *string    `json:"lock_reason,omitempty"`
 }
 
 // ListIssueEvents lists events for the specified issue.
 //
 // GitHub API docs: https://developer.github.com/v3/issues/events/#list-events-for-an-issue
-func (s *IssuesService) ListIssueEvents(owner, repo string, number int, opt *ListOptions) ([]IssueEvent, *Response, error) {
+func (s *IssuesService) ListIssueEvents(ctx context.Context, owner, repo string, number int, opt *ListOptions) ([]*IssueEvent, *Response, error) {
 	u := fmt.Sprintf("repos/%v/%v/issues/%v/events", owner, repo, number)
 	u, err := addOptions(u, opt)
 	if err != nil {
@@ -79,19 +92,21 @@ func (s *IssuesService) ListIssueEvents(owner, repo string, number int, opt *Lis
 		return nil, nil, err
 	}
 
-	var events []IssueEvent
-	resp, err := s.client.Do(req, &events)
+	req.Header.Set("Accept", mediaTypeLockReasonPreview)
+
+	var events []*IssueEvent
+	resp, err := s.client.Do(ctx, req, &events)
 	if err != nil {
 		return nil, resp, err
 	}
 
-	return events, resp, err
+	return events, resp, nil
 }
 
 // ListRepositoryEvents lists events for the specified repository.
 //
 // GitHub API docs: https://developer.github.com/v3/issues/events/#list-events-for-a-repository
-func (s *IssuesService) ListRepositoryEvents(owner, repo string, opt *ListOptions) ([]IssueEvent, *Response, error) {
+func (s *IssuesService) ListRepositoryEvents(ctx context.Context, owner, repo string, opt *ListOptions) ([]*IssueEvent, *Response, error) {
 	u := fmt.Sprintf("repos/%v/%v/issues/events", owner, repo)
 	u, err := addOptions(u, opt)
 	if err != nil {
@@ -103,19 +118,19 @@ func (s *IssuesService) ListRepositoryEvents(owner, repo string, opt *ListOption
 		return nil, nil, err
 	}
 
-	var events []IssueEvent
-	resp, err := s.client.Do(req, &events)
+	var events []*IssueEvent
+	resp, err := s.client.Do(ctx, req, &events)
 	if err != nil {
 		return nil, resp, err
 	}
 
-	return events, resp, err
+	return events, resp, nil
 }
 
 // GetEvent returns the specified issue event.
 //
 // GitHub API docs: https://developer.github.com/v3/issues/events/#get-a-single-event
-func (s *IssuesService) GetEvent(owner, repo string, id int) (*IssueEvent, *Response, error) {
+func (s *IssuesService) GetEvent(ctx context.Context, owner, repo string, id int64) (*IssueEvent, *Response, error) {
 	u := fmt.Sprintf("repos/%v/%v/issues/events/%v", owner, repo, id)
 
 	req, err := s.client.NewRequest("GET", u, nil)
@@ -124,10 +139,20 @@ func (s *IssuesService) GetEvent(owner, repo string, id int) (*IssueEvent, *Resp
 	}
 
 	event := new(IssueEvent)
-	resp, err := s.client.Do(req, event)
+	resp, err := s.client.Do(ctx, req, event)
 	if err != nil {
 		return nil, resp, err
 	}
 
-	return event, resp, err
+	return event, resp, nil
+}
+
+// Rename contains details for 'renamed' events.
+type Rename struct {
+	From *string `json:"from,omitempty"`
+	To   *string `json:"to,omitempty"`
+}
+
+func (r Rename) String() string {
+	return Stringify(r)
 }
