@@ -37,9 +37,9 @@ func main() {
 	fatalIfErr(db.Ping())
 	_, err = db.Exec("SET NAMES UTF8")
 	fatalIfErr(err)
-	legacyQuery, err := db.Prepare("SELECT `username` FROM keystore WHERE `N` = ? LIMIT 1")
+	legacyQuery, err := db.Prepare("SELECT `username` FROM `keystore` WHERE `N` = ? LIMIT 1")
 	fatalIfErr(err)
-	newQuery, err := db.Prepare("SELECT `username` FROM keys WHERE `key` = ? LIMIT 1")
+	newQuery, err := db.Prepare("SELECT `username` FROM `keys` WHERE `key` = ? LIMIT 1")
 	fatalIfErr(err)
 
 	server := &Server{
