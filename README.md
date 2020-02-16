@@ -7,6 +7,9 @@ A ssh server that knows who you are.
 ssh whoami.filippo.io
 ```
 
+ED25519 key fingerprint is `SHA256:qGAqPqtlvFBCt4LfMME3IgJqZWlcrlBMxNmGjhLVYzY`.  
+RSA key fingerprint is `SHA256:O6zDQjQws92wQSA41wXusKquKMuugPVM/oBZXNmfyvI`.
+
 ## How it works
 
 When it tries to authenticate via public key, ssh sends the server all your public keys, one by one, until the server accepts one. One can take advantage of this to enumerate all the client's installed public keys.
