@@ -1,13 +1,10 @@
-module github.com/FiloSottile/whosthere
+module github.com/FiloSottile/whoami.filippo.io
+
+go 1.13
 
 require (
-	github.com/go-sql-driver/mysql v1.4.1
-	github.com/google/go-github v17.0.0+incompatible
-	github.com/google/go-querystring v1.0.0 // indirect
-	golang.org/x/crypto v0.0.0-20181112202954-3d3f9f413869
-	golang.org/x/net v0.0.0-20181114220301-adae6a3d119a // indirect
-	golang.org/x/oauth2 v0.0.0-20181120190819-8f65e3013eba
-	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f // indirect
-	golang.org/x/sys v0.0.0-20181122145206-62eef0e2fa9b // indirect
-	google.golang.org/appengine v1.3.0 // indirect
+	github.com/go-sql-driver/mysql v1.5.0
+	github.com/google/go-github/v29 v29.0.3
+	golang.org/x/crypto v0.0.0-20200214034016-1d94cc7ab1c6
+	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 )
