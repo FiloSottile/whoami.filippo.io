@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"expvar"
 	"fmt"
 	"net"
 	"os"
@@ -124,6 +125,10 @@ type Server struct {
 	newQuery    *sql.Stmt
 	legacyQuery *sql.Stmt
 
+	hsErrs, errors              *expvar.Int
+	agent, x11, roaming         *expvar.Int
+	conns, withKeys, identified *expvar.Int
+
 	mu          sync.RWMutex
 	sessionInfo map[string]sessionInfo
 }
@@ -164,9 +169,20 @@ func (s *Server) Handle(nConn net.Conn) {
 	conn, chans, reqs, err := ssh.NewServerConn(nConn, s.sshConfig)
 	if err != nil {
 		le.Error = "Handshake failed: " + err.Error()
+		s.hsErrs.Add(1)
 		return
 	}
 	defer func() {
+		s.conns.Add(1)
+		if len(le.KeysOffered) > 0 {
+			s.withKeys.Add(1)
+		}
+		if le.Error != "" {
+			s.errors.Add(1)
+		}
+		if le.GitHub != "" {
+			s.identified.Add(1)
+		}
 		s.mu.Lock()
 		delete(s.sessionInfo, string(conn.SessionID()))
 		s.mu.Unlock()
@@ -243,12 +259,15 @@ func (s *Server) Handle(nConn net.Conn) {
 
 		reqLock.Lock()
 		if agentFwd {
+			s.agent.Add(1)
 			channel.Write(agentMsg)
 		}
 		if x11 {
+			s.x11.Add(1)
 			channel.Write(x11Msg)
 		}
 		if roaming {
+			s.roaming.Add(1)
 			channel.Write(roamingMsg)
 		}
 

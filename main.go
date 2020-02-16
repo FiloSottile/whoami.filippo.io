@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"expvar"
 	"log"
 	"net"
 	"net/http"
@@ -25,6 +26,7 @@ func main() {
 	go func() {
 		log.Println(http.ListenAndServe(os.Getenv("LISTEN_DEBUG"), nil))
 	}()
+	startInfluxDB()
 
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
@@ -47,6 +49,15 @@ func main() {
 		legacyQuery:  legacyQuery,
 		newQuery:     newQuery,
 		sessionInfo:  make(map[string]sessionInfo),
+
+		hsErrs:     expvar.NewInt("handshake_errors"),
+		errors:     expvar.NewInt("errors"),
+		agent:      expvar.NewInt("agent"),
+		x11:        expvar.NewInt("x11"),
+		roaming:    expvar.NewInt("roaming"),
+		conns:      expvar.NewInt("conns"),
+		withKeys:   expvar.NewInt("with_keys"),
+		identified: expvar.NewInt("identified"),
 	}
 	server.sshConfig = &ssh.ServerConfig{
 		KeyboardInteractiveCallback: server.KeyboardInteractiveCallback,
