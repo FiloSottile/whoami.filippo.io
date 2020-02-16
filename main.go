@@ -37,12 +37,15 @@ func main() {
 	fatalIfErr(db.Ping())
 	_, err = db.Exec("SET NAMES UTF8")
 	fatalIfErr(err)
-	query, err := db.Prepare("SELECT `username` FROM keystore WHERE `N` = ? LIMIT 1")
+	legacyQuery, err := db.Prepare("SELECT `username` FROM keystore WHERE `N` = ? LIMIT 1")
+	fatalIfErr(err)
+	newQuery, err := db.Prepare("SELECT `username` FROM keys WHERE `key` = ? LIMIT 1")
 	fatalIfErr(err)
 
 	server := &Server{
 		githubClient: GitHubClient,
-		sqlQuery:     query,
+		legacyQuery:  legacyQuery,
+		newQuery:     newQuery,
 		sessionInfo:  make(map[string]sessionInfo),
 	}
 	server.sshConfig = &ssh.ServerConfig{
@@ -53,6 +56,9 @@ func main() {
 	private, err := ssh.ParsePrivateKey([]byte(os.Getenv("SSH_HOST_KEY")))
 	fatalIfErr(err)
 	server.sshConfig.AddHostKey(private)
+	privateEd, err := ssh.ParsePrivateKey([]byte(os.Getenv("SSH_HOST_KEY_ED25519")))
+	fatalIfErr(err)
+	server.sshConfig.AddHostKey(privateEd)
 
 	listener, err := net.Listen("tcp", os.Getenv("LISTEN_SSH"))
 	fatalIfErr(err)

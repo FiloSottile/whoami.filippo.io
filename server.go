@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"crypto/rsa"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -35,7 +37,7 @@ var termTmpl = template.Must(template.New("termTmpl").Parse(strings.Replace(`
     |                                                                     |
     |                                                                     |
     |  P.S. This whole thingy is Open Source! (And written in Go!)        |
-    |  https://github.com/FiloSottile/whosthere                           |
+    |  https://github.com/FiloSottile/whoami.filippo.io                   |
     |                                                                     |
     |  -- @FiloSottile (https://twitter.com/FiloSottile)                  |
     |                                                                     |
@@ -62,7 +64,7 @@ var failedMsg = []byte(strings.Replace(`
     |                                                                     |
     |                                                                     |
     |  P.S. This whole thingy is Open Source! (And written in Go!)        |
-    |  https://github.com/FiloSottile/whosthere                           |
+    |  https://github.com/FiloSottile/whoami.filippo.io                   |
     |                                                                     |
     |  -- @FiloSottile (https://twitter.com/FiloSottile)                  |
     |                                                                     |
@@ -118,7 +120,9 @@ type sessionInfo struct {
 type Server struct {
 	githubClient *github.Client
 	sshConfig    *ssh.ServerConfig
-	sqlQuery     *sql.Stmt
+
+	newQuery    *sql.Stmt
+	legacyQuery *sql.Stmt
 
 	mu          sync.RWMutex
 	sessionInfo map[string]sessionInfo
@@ -274,4 +278,38 @@ func (s *Server) Handle(nConn net.Conn) {
 		termTmpl.Execute(channel, struct{ Name, User string }{name, user})
 		return
 	}
+}
+
+func (s *Server) findUser(keys []ssh.PublicKey) (string, error) {
+	for _, pk := range keys {
+		var user string
+		key := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(pk)))
+		err := s.newQuery.QueryRow(key).Scan(&user)
+		if err == sql.ErrNoRows && pk.Type() == ssh.KeyAlgoRSA {
+			// Try the legacy database.
+			k := pk.(ssh.CryptoPublicKey).CryptoPublicKey().(*rsa.PublicKey)
+			err = s.legacyQuery.QueryRow(k.N.String()).Scan(&user)
+		}
+		if err == sql.ErrNoRows {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+
+		return user, nil
+	}
+
+	return "", nil
+}
+
+func (s *Server) getUserName(user string) (string, error) {
+	u, _, err := s.githubClient.Users.Get(context.TODO(), user)
+	if err != nil {
+		return "", err
+	}
+	if u.Name == nil {
+		return "@" + user, nil
+	}
+	return *u.Name, nil
 }

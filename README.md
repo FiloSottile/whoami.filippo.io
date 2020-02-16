@@ -1,4 +1,4 @@
-# whosthere
+# whoami.filippo.io
 A ssh server that knows who you are.
 
 ## Try it (it's harmless)
