@@ -34,7 +34,7 @@ var termTmpl = template.Must(template.New("termTmpl").Parse(strings.Replace(`
     |  ssh public keys and Ben (benjojo.co.uk) grabbed them all.          |
     |                                                                     |
     |  That's pretty handy at times :) for example your key is at         |
-    |  https://github.com/{{ .User }}.keys                                |
+    |  https://github.com/{{ .User }}.keys
     |                                                                     |
     |  If this behavior is problematic for you, you can tell ssh not to   |
     |  present your public keys to the server by default.                 |
