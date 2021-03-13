@@ -26,7 +26,6 @@ func main() {
 	go func() {
 		log.Println(http.ListenAndServe(os.Getenv("LISTEN_DEBUG"), nil))
 	}()
-	startInfluxDB()
 
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
