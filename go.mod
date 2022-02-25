@@ -1,13 +1,19 @@
 module github.com/FiloSottile/whoami.filippo.io
 
-go 1.13
+go 1.17
 
 require (
-	github.com/go-sql-driver/mysql v1.5.0
-	github.com/google/go-cmp v0.4.0 // indirect
-	github.com/google/go-github/v29 v29.0.3
-	// https://github.com/influxdata/influxdb/issues/16901
-	github.com/influxdata/influxdb v1.7.9
-	golang.org/x/crypto v0.0.0-20200214034016-1d94cc7ab1c6
-	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+	crawshaw.io/sqlite v0.3.2
+	github.com/google/go-github/v42 v42.0.0
+	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838
+	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
+)
+
+require (
+	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
+	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
+	golang.org/x/sys v0.0.0-20220204135822-1c1b9b1eba6a // indirect
+	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/protobuf v1.26.0 // indirect
 )

@@ -1,23 +1,93 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"crypto/rsa"
-	"database/sql"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"expvar"
-	"fmt"
+	"io"
+	"log"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
 
-	"github.com/google/go-github/v29/github"
+	"crawshaw.io/sqlite/sqlitex"
+	"github.com/google/go-github/v42/github"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/oauth2"
 )
+
+func main() {
+	go func() {
+		log.Println(http.ListenAndServe(os.Getenv("LISTEN_DEBUG"), nil))
+	}()
+
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
+	)
+	tc := oauth2.NewClient(context.Background(), ts)
+	ghClient := github.NewClient(tc)
+	_, _, err := ghClient.Users.Get(context.Background(), "")
+	fatalIfErr(err)
+	log.Println("Connected to GitHub...")
+
+	db, err := sqlitex.Open(os.Getenv("DB_PATH"), 0, 3)
+	fatalIfErr(err)
+	log.Println("Opened database...")
+
+	server := &Server{
+		githubClient: ghClient,
+		db:           db,
+		sessionInfo:  make(map[string]sessionInfo),
+
+		hsErrs:     expvar.NewInt("handshake_errors"),
+		errors:     expvar.NewInt("errors"),
+		agent:      expvar.NewInt("agent"),
+		x11:        expvar.NewInt("x11"),
+		roaming:    expvar.NewInt("roaming"),
+		conns:      expvar.NewInt("conns"),
+		withKeys:   expvar.NewInt("with_keys"),
+		identified: expvar.NewInt("identified"),
+	}
+	server.sshConfig = &ssh.ServerConfig{
+		KeyboardInteractiveCallback: server.KeyboardInteractiveCallback,
+		PublicKeyCallback:           server.PublicKeyCallback,
+	}
+
+	private, err := ssh.ParsePrivateKey([]byte(os.Getenv("SSH_HOST_KEY")))
+	fatalIfErr(err)
+	server.sshConfig.AddHostKey(private)
+	privateEd, err := ssh.ParsePrivateKey([]byte(os.Getenv("SSH_HOST_KEY_ED25519")))
+	fatalIfErr(err)
+	server.sshConfig.AddHostKey(privateEd)
+	log.Println("Loaded keys...")
+
+	listener, err := net.Listen("tcp", os.Getenv("LISTEN_SSH"))
+	fatalIfErr(err)
+	log.Println("Listening...")
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Println("Accept failed:", err)
+			continue
+		}
+
+		go server.Handle(conn)
+	}
+}
+
+func fatalIfErr(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
 var termTmpl = template.Must(template.New("termTmpl").Parse(strings.Replace(`
     +---------------------------------------------------------------------+
@@ -31,16 +101,16 @@ var termTmpl = template.Must(template.New("termTmpl").Parse(strings.Replace(`
     |  That's how we know you are @{{ .User }} on GitHub!
     |                                                                     |
     |  Ah, maybe what you didn't know is that GitHub publishes all users' |
-    |  ssh public keys and Ben (benjojo.co.uk) grabbed them all.          |
+    |  ssh public keys. Myself, I learned it from Ben (benjojo.co.uk).    |
     |                                                                     |
     |  That's pretty handy at times :) for example your key is at         |
     |  https://github.com/{{ .User }}.keys
     |                                                                     |
-    |                                                                     |
-    |  P.S. This whole thingy is Open Source! (And written in Go!)        |
-    |  https://github.com/FiloSottile/whoami.filippo.io                   |
-    |                                                                     |
     |  -- @FiloSottile (https://twitter.com/FiloSottile)                  |
+    |                                                                     |
+    |                                                                     |
+    |  P.S. The source of this server is at                               |
+    |  https://github.com/FiloSottile/whoami.filippo.io                   |
     |                                                                     |
     +---------------------------------------------------------------------+
 
@@ -55,19 +125,14 @@ var failedMsg = []byte(strings.Replace(`
     |  Did you know that ssh sends all your public keys to any server     |
     |  it tries to authenticate to? You can see yours echoed below.       |
     |                                                                     |
-    |  We tried to use that to find your GitHub username, but we          |
-    |  couldn't :( maybe you don't even have GitHub ssh keys, do you?     |
-    |                                                                     |
-    |  By the way, did you know that GitHub publishes all users'          |
-    |  ssh public keys and Ben (benjojo.co.uk) grabbed them all?          |
-    |                                                                     |
-    |  That's pretty handy at times :) But not this time :(               |
-    |                                                                     |
-    |                                                                     |
-    |  P.S. This whole thingy is Open Source! (And written in Go!)        |
-    |  https://github.com/FiloSottile/whoami.filippo.io                   |
+    |  We tried to use them to lookup your GitHub account,                |
+    |  but got no match :(                                                |
     |                                                                     |
     |  -- @FiloSottile (https://twitter.com/FiloSottile)                  |
+    |                                                                     |
+    |                                                                     |
+    |  P.S. The source of this server is at                               |
+    |  https://github.com/FiloSottile/whoami.filippo.io                   |
     |                                                                     |
     +---------------------------------------------------------------------+
 
@@ -76,12 +141,13 @@ var failedMsg = []byte(strings.Replace(`
 var agentMsg = []byte(strings.Replace(`
                       ***** WARNING ***** WARNING *****
 
-         You have SSH agent forwarding turned (universally?) on. That
-        is a VERY BAD idea. For example right now I have access to your
-        agent and I can use your keys however I want as long as you are
-       connected. I'm a good guy and I won't do anything, but ANY SERVER
-        YOU LOG IN TO AND ANYONE WITH ROOT ON THOSE SERVERS CAN LOGIN AS
-                                 YOU ANYWHERE.
+           You have SSH agent forwarding turned (universally?) on.
+         That is a VERY BAD idea. For example, right now this server
+          has access to your agent and can use your keys however it
+                    likes as long as you are connected.
+
+               ANY SERVER YOU LOG IN TO AND ANYONE WITH ROOT ON
+                   THOSE SERVERS CAN LOGIN AS YOU ANYWHERE.
 
                        Read more:  http://git.io/vO2A6
 `, "\n", "\n\r", -1))
@@ -89,12 +155,13 @@ var agentMsg = []byte(strings.Replace(`
 var x11Msg = []byte(strings.Replace(`
                       ***** WARNING ***** WARNING *****
 
-            You have X11 forwarding turned (universally?) on. That
-        is a VERY BAD idea. For example right now I have access to your
-          X11 server and I can access your desktop as long as you are
-       connected. I'm a good guy and I won't do anything, but ANY SERVER
-         YOU LOG IN TO AND ANYONE WITH ROOT ON THOSE SERVERS CAN SNIFF
-                  YOUR KEYSTROKES AND ACCESS YOUR WINDOWS.
+               You have X11 forwarding turned (universally?) on.
+          That is a VERY BAD idea. For example, right now this server
+              has access to your desktop, windows, and keystrokes
+                         as long as you are connected.
+
+                ANY SERVER YOU LOG IN TO AND ANYONE WITH ROOT ON
+         THOSE SERVERS CAN SNIFF YOUR KEYSTROKES AND ACCESS YOUR WINDOWS.
 
      Read more:  http://www.hackinglinuxexposed.com/articles/20040705.html
 `, "\n", "\n\r", -1))
@@ -122,8 +189,7 @@ type Server struct {
 	githubClient *github.Client
 	sshConfig    *ssh.ServerConfig
 
-	newQuery    *sql.Stmt
-	legacyQuery *sql.Stmt
+	db *sqlitex.Pool
 
 	hsErrs, errors              *expvar.Int
 	agent, x11, roaming         *expvar.Int
@@ -141,32 +207,36 @@ func (s *Server) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	s.sessionInfo[string(conn.SessionID())] = si
 	s.mu.Unlock()
 
-	// Never succeed a key, or we might not see the next. See KeyboardInteractiveCallback.
+	// Never accept a key, or we might not see the next.
 	return nil, errors.New("")
 }
 
 func (s *Server) KeyboardInteractiveCallback(ssh.ConnMetadata, ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
 	// keyboard-interactive is tried when all public keys failed, and
 	// since it's server-driven we can just pass without user
-	// interaction to let the user in once we got all the public keys
+	// interaction to let the user in once we got all the public keys.
 	return nil, nil
 }
 
 type logEntry struct {
 	Timestamp     string
-	Username      string
-	RequestTypes  []string
-	Error         string
-	KeysOffered   []string
-	GitHub        string
-	ClientVersion string
+	Username      string   `json:",omitempty"`
+	RequestTypes  []string `json:",omitempty"`
+	Error         string   `json:",omitempty"`
+	KeysOffered   []string `json:",omitempty"`
+	GitHubID      int64    `json:",omitempty"`
+	GitHubName    string   `json:",omitempty"`
+	ClientVersion string   `json:",omitempty"`
 }
 
 func (s *Server) Handle(nConn net.Conn) {
+	conn, chans, reqs, err := ssh.NewServerConn(nConn, s.sshConfig)
+	if err == io.EOF {
+		// Port scan or health check.
+		return
+	}
 	le := &logEntry{Timestamp: time.Now().Format(time.RFC3339)}
 	defer json.NewEncoder(os.Stdout).Encode(le)
-
-	conn, chans, reqs, err := ssh.NewServerConn(nConn, s.sshConfig)
 	if err != nil {
 		le.Error = "Handshake failed: " + err.Error()
 		s.hsErrs.Add(1)
@@ -180,7 +250,7 @@ func (s *Server) Handle(nConn net.Conn) {
 		if le.Error != "" {
 			s.errors.Add(1)
 		}
-		if le.GitHub != "" {
+		if le.GitHubID != 0 {
 			s.identified.Add(1)
 		}
 		s.mu.Lock()
@@ -207,7 +277,7 @@ func (s *Server) Handle(nConn net.Conn) {
 	s.mu.RUnlock()
 
 	le.Username = conn.User()
-	le.ClientVersion = fmt.Sprintf("%x", conn.ClientVersion())
+	le.ClientVersion = string(conn.ClientVersion())
 	for _, key := range si.Keys {
 		le.KeysOffered = append(le.KeysOffered, string(ssh.MarshalAuthorizedKey(key)))
 	}
@@ -271,13 +341,13 @@ func (s *Server) Handle(nConn net.Conn) {
 			channel.Write(roamingMsg)
 		}
 
-		user, err := s.findUser(si.Keys)
+		userID, err := s.findUser(si.Keys)
 		if err != nil {
 			le.Error = "findUser failed: " + err.Error()
 			return
 		}
 
-		if user == "" {
+		if userID == 0 {
 			channel.Write(failedMsg)
 			for _, key := range si.Keys {
 				channel.Write(ssh.MarshalAuthorizedKey(key))
@@ -287,48 +357,44 @@ func (s *Server) Handle(nConn net.Conn) {
 			return
 		}
 
-		le.GitHub = user
-		name, err := s.getUserName(user)
+		le.GitHubID = userID
+		u, _, err := s.githubClient.Users.GetByID(context.TODO(), userID)
 		if err != nil {
 			le.Error = "getUserName failed: " + err.Error()
 			return
 		}
 
-		termTmpl.Execute(channel, struct{ Name, User string }{name, user})
+		login := *u.Login
+		name := "@" + login
+		if u.Name != nil {
+			le.GitHubName = *u.Name
+			name = *u.Name
+		}
+
+		termTmpl.Execute(channel, struct{ Name, User string }{name, login})
 		return
 	}
 }
 
-func (s *Server) findUser(keys []ssh.PublicKey) (string, error) {
+func (s *Server) findUser(keys []ssh.PublicKey) (int64, error) {
+	conn := s.db.Get(context.TODO())
+	if conn == nil {
+		return 0, errors.New("couldn't get db connection")
+	}
+	defer s.db.Put(conn)
 	for _, pk := range keys {
-		var user string
-		key := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(pk)))
-		err := s.newQuery.QueryRow(key).Scan(&user)
-		if err == sql.ErrNoRows && pk.Type() == ssh.KeyAlgoRSA {
-			// Try the legacy database.
-			k := pk.(ssh.CryptoPublicKey).CryptoPublicKey().(*rsa.PublicKey)
-			err = s.legacyQuery.QueryRow(k.N.String()).Scan(&user)
-		}
-		if err == sql.ErrNoRows {
+		key := bytes.TrimSpace(ssh.MarshalAuthorizedKey(pk))
+		keyHash := sha256.Sum256(key)
+		stmt := conn.Prep("SELECT userID FROM key_userid WHERE keyHash = $kh;")
+		stmt.SetBytes("$kh", keyHash[:16])
+		if hasRow, err := stmt.Step(); err != nil {
+			return 0, err
+		} else if !hasRow {
 			continue
 		}
-		if err != nil {
-			return "", err
-		}
-
-		return user, nil
+		defer stmt.Reset()
+		return stmt.GetInt64("userID"), nil
 	}
 
-	return "", nil
-}
-
-func (s *Server) getUserName(user string) (string, error) {
-	u, _, err := s.githubClient.Users.Get(context.TODO(), user)
-	if err != nil {
-		return "", err
-	}
-	if u.Name == nil {
-		return "@" + user, nil
-	}
-	return *u.Name, nil
+	return 0, nil
 }
