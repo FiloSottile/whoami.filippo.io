@@ -1,13 +1,20 @@
 app = "filippo-whoami"
 
+[metrics]
+  port = 9091
+  path = "/metrics"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = "443"
+
 [[services]]
   internal_port = 2222
   protocol = "tcp"
-
-  [services.concurrency]
-    hard_limit = 100
-    soft_limit = 75
-    type = "connections"
 
   [[services.ports]]
     port = 22
@@ -17,7 +24,3 @@ app = "filippo-whoami"
     interval = "10s"
     restart_limit = 6
     timeout = "2s"
-
-[env]
-  LISTEN_DEBUG = ":6000"
-  LISTEN_SSH = ":2222"

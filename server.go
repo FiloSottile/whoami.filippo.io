@@ -6,8 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"expvar"
-	"io"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -21,12 +20,27 @@ import (
 	"github.com/google/go-github/v42/github"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/oauth2"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+var sshConns = promauto.NewCounterVec(prometheus.CounterOpts{Name: "ssh_connections_total"},
+	[]string{"agent", "x11", "roaming", "keyCount", "identified", "error"})
+var hsErrs = promauto.NewCounter(prometheus.CounterOpts{Name: "handshake_errors_total"})
+
 func main() {
-	go func() {
-		log.Println(http.ListenAndServe(os.Getenv("LISTEN_DEBUG"), nil))
-	}()
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", promhttp.Handler())
+	metricsServer := &http.Server{Addr: ":9091", Handler: metricsMux,
+		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	go func() { log.Fatal(metricsServer.ListenAndServe()) }()
+
+	httpServer := &http.Server{Addr: ":8080",
+		Handler:     http.RedirectHandler("https://words.filippo.io/ssh-whoami-filippo-io/", 302),
+		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	go func() { log.Fatal(httpServer.ListenAndServe()) }()
 
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
@@ -45,15 +59,6 @@ func main() {
 		githubClient: ghClient,
 		db:           db,
 		sessionInfo:  make(map[string]sessionInfo),
-
-		hsErrs:     expvar.NewInt("handshake_errors"),
-		errors:     expvar.NewInt("errors"),
-		agent:      expvar.NewInt("agent"),
-		x11:        expvar.NewInt("x11"),
-		roaming:    expvar.NewInt("roaming"),
-		conns:      expvar.NewInt("conns"),
-		withKeys:   expvar.NewInt("with_keys"),
-		identified: expvar.NewInt("identified"),
 	}
 	server.sshConfig = &ssh.ServerConfig{
 		KeyboardInteractiveCallback: server.KeyboardInteractiveCallback,
@@ -68,7 +73,7 @@ func main() {
 	server.sshConfig.AddHostKey(privateEd)
 	log.Println("Loaded keys...")
 
-	listener, err := net.Listen("tcp", os.Getenv("LISTEN_SSH"))
+	listener, err := net.Listen("tcp", ":2222")
 	fatalIfErr(err)
 	log.Println("Listening...")
 
@@ -188,12 +193,7 @@ type sessionInfo struct {
 type Server struct {
 	githubClient *github.Client
 	sshConfig    *ssh.ServerConfig
-
-	db *sqlitex.Pool
-
-	hsErrs, errors              *expvar.Int
-	agent, x11, roaming         *expvar.Int
-	conns, withKeys, identified *expvar.Int
+	db           *sqlitex.Pool
 
 	mu          sync.RWMutex
 	sessionInfo map[string]sessionInfo
@@ -231,35 +231,29 @@ type logEntry struct {
 
 func (s *Server) Handle(nConn net.Conn) {
 	conn, chans, reqs, err := ssh.NewServerConn(nConn, s.sshConfig)
-	if err == io.EOF {
-		// Port scan or health check.
+	if err != nil {
+		// Port scan, health check, or dictionary attack.
+		hsErrs.Inc()
 		return
 	}
 	le := &logEntry{Timestamp: time.Now().Format(time.RFC3339)}
 	defer json.NewEncoder(os.Stdout).Encode(le)
-	if err != nil {
-		le.Error = "Handshake failed: " + err.Error()
-		s.hsErrs.Add(1)
-		return
-	}
+	var agentFwd, x11, roaming bool
 	defer func() {
-		s.conns.Add(1)
-		if len(le.KeysOffered) > 0 {
-			s.withKeys.Add(1)
-		}
-		if le.Error != "" {
-			s.errors.Add(1)
-		}
-		if le.GitHubID != 0 {
-			s.identified.Add(1)
-		}
+		sshConns.With(prometheus.Labels{
+			"keyCount":   fmt.Sprintf("%v", len(le.KeysOffered)),
+			"error":      fmt.Sprintf("%v", le.Error != ""),
+			"identified": fmt.Sprintf("%v", le.GitHubID != 0),
+			"agent":      fmt.Sprintf("%v", agentFwd),
+			"x11":        fmt.Sprintf("%v", x11),
+			"roaming":    fmt.Sprintf("%v", roaming),
+		}).Inc()
 		s.mu.Lock()
 		delete(s.sessionInfo, string(conn.SessionID()))
 		s.mu.Unlock()
 		time.Sleep(500 * time.Millisecond)
 		conn.Close()
 	}()
-	roaming := false
 	go func(in <-chan *ssh.Request) {
 		for req := range in {
 			le.RequestTypes = append(le.RequestTypes, req.Type)
@@ -294,7 +288,6 @@ func (s *Server) Handle(nConn net.Conn) {
 		}
 		defer channel.Close()
 
-		agentFwd, x11 := false, false
 		reqLock := &sync.Mutex{}
 		reqLock.Lock()
 		timeout := time.AfterFunc(30*time.Second, func() { reqLock.Unlock() })
@@ -329,15 +322,12 @@ func (s *Server) Handle(nConn net.Conn) {
 
 		reqLock.Lock()
 		if agentFwd {
-			s.agent.Add(1)
 			channel.Write(agentMsg)
 		}
 		if x11 {
-			s.x11.Add(1)
 			channel.Write(x11Msg)
 		}
 		if roaming {
-			s.roaming.Add(1)
 			channel.Write(roamingMsg)
 		}
 
@@ -365,9 +355,9 @@ func (s *Server) Handle(nConn net.Conn) {
 		}
 
 		login := *u.Login
+		le.GitHubName = *u.Login
 		name := "@" + login
 		if u.Name != nil {
-			le.GitHubName = *u.Name
 			name = *u.Name
 		}
 
