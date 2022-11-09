@@ -26,7 +26,7 @@ All the interesting bits are in [server.go](https://github.com/FiloSottile/whost
 
 If this behavior is problematic for you, you can tell ssh not to present your public keys to the server by default.
 
-Add these lines at the end of your `~/.ssh/config` (after other "Host" directives)
+Add these lines at the **end**[^1] of your `~/.ssh/config` (after other "Host" directives)
 
 ```
 Host *
@@ -50,3 +50,5 @@ Host github.com
     PubkeyAuthentication yes
     IdentityFile ~/.ssh/github_id_rsa
 ```
+
+[^1]: *"Since the first obtained value for each parameter is used, more host-specific declarations should be given near the beginning of the file, and general defaults at the end."* https://man.openbsd.org/ssh_config.5
