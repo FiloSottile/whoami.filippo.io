@@ -103,15 +103,11 @@ var termTmpl = template.Must(template.New("termTmpl").Parse(strings.Replace(`
     |  Did you know that ssh sends all your public keys to any server     |
     |  it tries to authenticate to?                                       |
     |                                                                     |
-    |  That's how we know you are @{{ .User }} on GitHub!
+    |  We matched them to the keys of your GitHub account,                |
+    |  @{{ .User }}, which are available via the GraphQL API
+    |  and at https://github.com/{{ .User }}.keys
     |                                                                     |
-    |  Ah, maybe what you didn't know is that GitHub publishes all users' |
-    |  ssh public keys. Myself, I learned it from Ben (benjojo.co.uk).    |
-    |                                                                     |
-    |  That's pretty handy at times :) for example your key is at         |
-    |  https://github.com/{{ .User }}.keys
-    |                                                                     |
-    |  -- @FiloSottile (https://twitter.com/FiloSottile)                  |
+    |  -- Filippo (https://filippo.io)                                    |
     |                                                                     |
     |                                                                     |
     |  P.S. The source of this server is at                               |
@@ -133,7 +129,7 @@ var failedMsg = []byte(strings.Replace(`
     |  We tried to use them to lookup your GitHub account,                |
     |  but got no match :(                                                |
     |                                                                     |
-    |  -- @FiloSottile (https://twitter.com/FiloSottile)                  |
+    |  -- Filippo (https://filippo.io)                                    |
     |                                                                     |
     |                                                                     |
     |  P.S. The source of this server is at                               |
