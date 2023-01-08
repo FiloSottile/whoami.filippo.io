@@ -100,8 +100,8 @@ var termTmpl = template.Must(template.New("termTmpl").Parse(strings.Replace(`
     |             _o/ Hello {{ .Name }}!
     |                                                                     |
     |                                                                     |
-    |  Did you know that ssh sends all your public keys to any server     |
-    |  it tries to authenticate to?                                       |
+    |  Did you know that ssh sends your public keys to any server it      |
+    |  tries to authenticate to?                                          |
     |                                                                     |
     |  We matched them to the keys of your GitHub account,                |
     |  @{{ .User }}, which are available via the GraphQL API
@@ -123,8 +123,8 @@ var failedMsg = []byte(strings.Replace(`
     |             _o/ Hello!                                              |
     |                                                                     |
     |                                                                     |
-    |  Did you know that ssh sends all your public keys to any server     |
-    |  it tries to authenticate to? You can see yours echoed below.       |
+    |  Did you know that ssh sends your public keys to any server it      |
+    |  tries to authenticate to? You can see yours echoed below.          |
     |                                                                     |
     |  We tried to use them to lookup your GitHub account,                |
     |  but got no match :(                                                |
