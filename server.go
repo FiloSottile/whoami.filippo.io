@@ -38,7 +38,7 @@ func main() {
 	go func() { log.Fatal(metricsServer.ListenAndServe()) }()
 
 	httpServer := &http.Server{Addr: ":8080",
-		Handler:     http.RedirectHandler("https://words.filippo.io/ssh-whoami-filippo-io/", 302),
+		Handler:     http.RedirectHandler("https://words.filippo.io/dispatches/whoami-updated/", 302),
 		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
 	go func() { log.Fatal(httpServer.ListenAndServe()) }()
 
