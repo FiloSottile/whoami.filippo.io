@@ -14,17 +14,17 @@ import (
 	"time"
 )
 
-var start, _ = time.Parse(time.RFC3339, "2010-02-11T16:07:13Z")
-var end, _ = time.Parse(time.RFC3339, "2010-02-12T20:57:04Z")
-
 const targetPerSearch = 800
 
 func main() {
 	intC := make(chan os.Signal, 1)
 	signal.Notify(intC, os.Interrupt)
 
-	// Assume the start and end were from the last successful round.
-	start, end = end, end.Add(end.Sub(start))
+	start, err := time.Parse(time.RFC3339, os.Args[1])
+	if err != nil {
+		log.Fatal(err)
+	}
+	end := start.Add(1 * time.Hour)
 
 	out := json.NewEncoder(os.Stdout)
 	for time.Now().After(start) {
