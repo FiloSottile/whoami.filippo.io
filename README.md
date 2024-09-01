@@ -1,5 +1,5 @@
 # whoami.filippo.io
-An ssh server that knows who you are.
+知道你是谁的ssh服务器.
 
 ## Try it (it's harmless)
 
@@ -7,26 +7,26 @@ An ssh server that knows who you are.
 ssh whoami.filippo.io
 ```
 
-ED25519 key fingerprint is `SHA256:qGAqPqtlvFBCt4LfMME3IgJqZWlcrlBMxNmGjhLVYzY`.  
-RSA key fingerprint is `SHA256:O6zDQjQws92wQSA41wXusKquKMuugPVM/oBZXNmfyvI`.
+ED25519钥匙指纹是`SHA256:qGAqPqtlvFBCt4LfMME3IgJqZWlcrlBMxNmGjhLVYzY`.  
+RSA钥匙指纹是`SHA256:O6zDQjQws92wQSA41wXusKquKMuugPVM/oBZXNmfyvI`.
 
-## How it works
+## 运行原理
 
-When ssh tries to authenticate via public key, it sends the server all your public keys, one by one, until the server accepts one. One can take advantage of this to enumerate all the client's installed public keys.
+当ssh尝试通过公钥进行身份验证时，它会逐个向服务器发送您的所有公钥，直到服务器接受一个为止。可以利用这一点枚举所有客户端安装的公钥.
 
-On the other hand, GitHub allows everyone to download users' public keys (which is very handy at times). Ben Cox took advantage of that and [built a dataset of all GitHub public keys](https://blog.benjojo.co.uk/post/auditing-github-users-keys).
+另一方面，GitHub允许每个人下载用户的公钥（这有时非常方便）。Ben Cox利用了这一点[构建了一个包含所有GitHub公钥的数据集](https://blog.benjojo.co.uk/post/auditing-github-users-keys).
 
-This is a pretty vanilla `golang.org/x/crypto/ssh` Go server that will advertise `(publickey,keyboard-interactive)` authentication. It won't accept any public key, but it will take a note of them. Once the client is done with public keys, it will try `keyboard-interactive`, which the server will accept without sending any challenge, so that no user interaction is required.
+这是一种很基础的`golang.org/x/crypto/ssh` Go服务器，将公布`（公钥，键盘交互）`身份验证。它不会接受任何公钥，但会记录它们。一旦客户端使用了公钥，它将尝试“键盘交互”，服务器将接受它而不发送任何质询，因此不需要用户交互.
 
-Then it just lets you open a shell+PTY, uses the public keys and Ben's database to find your username, asks the GitHub API your real name, prints all that and closes the terminal.  
+然后，它只允许您打开一个shell+PTY，使用公钥和Ben的数据库来查找您的用户名，向GitHub API询问您的真实姓名，打印所有内容并关闭终端.  
 
-All the interesting bits are in [server.go](https://github.com/FiloSottile/whosthere/blob/master/server.go).
+所有有趣的部分都在 [server.go](https://github.com/FiloSottile/whosthere/blob/master/server.go).
 
-## How do I stop it?
+## 如何停止它？
 
-If this behavior is problematic for you, you can tell ssh not to present your public keys to the server by default.
+如果这种行为对您来说有问题，您可以告诉ssh默认情况下不要向服务器提供您的公钥.
 
-Add these lines at the end of your `~/.ssh/config` (after other "Host" directives)
+将这些行添加到`~/.ssh/config`之后 (在其他 "Host" 指令之后)
 
 ```
 Host *
@@ -34,7 +34,7 @@ Host *
     IdentitiesOnly yes
 ```
 
-And then specify what keys should be used for each host
+然后指定每个主机应使用哪些密钥
 
 ```
 Host example.com
@@ -43,7 +43,7 @@ Host example.com
     # IdentitiesOnly yes # Enable ssh-agent (PKCS11 etc.) keys
 ```
 
-If you want you can use different keys so that they can't be linked together
+如果需要，可以使用不同的键，使它们不能链接在一起
 
 ```
 Host github.com
