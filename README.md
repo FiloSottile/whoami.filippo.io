@@ -34,19 +34,27 @@ Host *
     IdentitiesOnly yes
 ```
 
-And then specify what keys should be used for each host
+and above this block (the first matching option is applied,
+`Host \*` directives must come last),
+specify what keys should be used for each host:
 
 ```
 Host example.com
     PubkeyAuthentication yes
     IdentityFile ~/.ssh/id_rsa
-    # IdentitiesOnly yes # Enable ssh-agent (PKCS11 etc.) keys
 ```
 
-If you want you can use different keys so that they can't be linked together
+Or, if you want to use different keys so that they can't be linked together:
 
 ```
-Host github.com
-    PubkeyAuthentication yes
-    IdentityFile ~/.ssh/github_id_rsa
+Host *
+    # Only use identity files, not any identity loaded in ssh-agent
+    IdentitiesOnly yes
+    # Define pattern for the names of identity files by host
+    IdentityFile %d/.ssh/%h.rsa
+    IdentityFile %d/.ssh/%h.dsa
+    IdentityFile %d/.ssh/%h.ecdsa
+    # %d = local user's home directory
+    # %h = remote host name
+    # See IdentityFile section in `man ssh_config` for alternatives.
 ```
