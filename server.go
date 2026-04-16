@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"crawshaw.io/sqlite/sqlitex"
-	"github.com/google/go-github/v42/github"
+	"github.com/google/go-github/v72/github"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/oauth2"
 

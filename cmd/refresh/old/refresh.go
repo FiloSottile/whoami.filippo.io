@@ -18,7 +18,7 @@ import (
 
 	"crawshaw.io/sqlite"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/google/go-github/v42/github"
+	"github.com/google/go-github/v72/github"
 	"golang.org/x/oauth2"
 )
 
