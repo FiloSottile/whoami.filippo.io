@@ -1,27 +1,25 @@
 app = "filippo-whoami"
 
+[deploy]
+  strategy = "bluegreen"
+
 [metrics]
   port = 9091
   path = "/metrics"
 
-[[services]]
+[http_service]
   internal_port = 8080
-  protocol = "tcp"
-  auto_stop_machines = "stop"
-
-  [[services.ports]]
-    handlers = ["http"]
-    port = 80
-    force_https = true
-
-  [[services.ports]]
-    handlers = ["tls", "http"]
-    port = 443
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
 
 [[services]]
   internal_port = 2222
   protocol = "tcp"
-  auto_stop_machines = "stop"
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
 
   [[services.ports]]
     port = 22
