@@ -37,11 +37,6 @@ func main() {
 		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
 	go func() { log.Fatal(metricsServer.ListenAndServe()) }()
 
-	httpServer := &http.Server{Addr: ":8080",
-		Handler:     http.RedirectHandler("https://words.filippo.io/dispatches/whoami-updated/", 302),
-		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
-	go func() { log.Fatal(httpServer.ListenAndServe()) }()
-
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: os.Getenv("GITHUB_TOKEN")},
 	)
@@ -73,6 +68,20 @@ func main() {
 	fatalIfErr(err)
 	server.sshConfig.AddHostKey(privateEd)
 	log.Println("Loaded keys...")
+
+	var knownHosts bytes.Buffer
+	for _, signer := range []ssh.Signer{privateEd, private} {
+		fmt.Fprintf(&knownHosts, "whoami.filippo.io %s", ssh.MarshalAuthorizedKey(signer.PublicKey()))
+	}
+
+	httpMux := http.NewServeMux()
+	httpMux.HandleFunc("/.well-known/ssh-known-hosts", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(w, r, "ssh-known-hosts", time.Time{}, bytes.NewReader(knownHosts.Bytes()))
+	})
+	httpMux.Handle("/", http.RedirectHandler("https://words.filippo.io/dispatches/whoami-updated/", 302))
+	httpServer := &http.Server{Addr: ":8080", Handler: httpMux,
+		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	go func() { log.Fatal(httpServer.ListenAndServe()) }()
 
 	listener, err := net.Listen("tcp", ":2222")
 	fatalIfErr(err)
