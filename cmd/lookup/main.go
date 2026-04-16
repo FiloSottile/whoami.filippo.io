@@ -9,8 +9,8 @@ import (
 	"log"
 	"os"
 
-	"crawshaw.io/sqlite/sqlitex"
 	"golang.org/x/crypto/ssh"
+	"zombiezen.com/go/sqlite/sqlitex"
 )
 
 func main() {

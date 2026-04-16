@@ -12,7 +12,7 @@ import (
 	"log"
 	"os"
 
-	"crawshaw.io/sqlite"
+	"zombiezen.com/go/sqlite"
 )
 
 func main() {
@@ -54,7 +54,7 @@ func main() {
 		insStmt.SetBytes("$1", keyHash[:16])
 		insStmt.SetInt64("$2", line.ID)
 		_, err = insStmt.Step()
-		if err, ok := err.(sqlite.Error); ok && err.Code == sqlite.SQLITE_CONSTRAINT_PRIMARYKEY {
+		if sqlite.ErrCode(err) == sqlite.ResultConstraintPrimaryKey {
 			// Key already in the database.
 			continue
 		}

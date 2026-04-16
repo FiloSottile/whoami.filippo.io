@@ -16,10 +16,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"crawshaw.io/sqlite"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/go-github/v72/github"
 	"golang.org/x/oauth2"
+	"zombiezen.com/go/sqlite"
 )
 
 func main() {
@@ -92,7 +92,7 @@ func main() {
 			insStmt.SetBytes("$1", keyHash)
 			insStmt.SetInt64("$2", userID)
 			_, err = insStmt.Step()
-			if err, ok := err.(sqlite.Error); ok && err.Code == sqlite.SQLITE_CONSTRAINT_PRIMARYKEY {
+			if sqlite.ErrCode(err) == sqlite.ResultConstraintPrimaryKey {
 				// The same key was used by different users at different times.
 				continue
 			}

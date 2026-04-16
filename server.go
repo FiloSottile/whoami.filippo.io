@@ -16,10 +16,10 @@ import (
 	"text/template"
 	"time"
 
-	"crawshaw.io/sqlite/sqlitex"
 	"github.com/google/go-github/v72/github"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/oauth2"
+	"zombiezen.com/go/sqlite/sqlitex"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
