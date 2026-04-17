@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"net/http"
 	"os"
 	"os/signal"
@@ -75,12 +76,42 @@ func search(from, to time.Time) (keys map[string]uint64, count int, err error) {
 	for {
 		res, err := apiRequest(from, to, after)
 		if err != nil {
+			// Empirically, some time ranges are in a weird state where they always
+			// generate an error like this:
+			//   GraphQL error "Not Found"
+			// Detect this and divide and conquer to skip the bad range...but as small a piece as reasonably possible.
+			if strings.Contains(err.Error(), `GraphQL error "Not Found"`) && retries >= 3 {
+				dur := to.Sub(from)
+				if dur < time.Minute {
+					// declare this range to be empty, by fiat
+					log.Printf("[%v to %v] skipping range due to persistent Not Found errors", from.Format(time.RFC3339), to.Format(time.RFC3339))
+					return nil, 0, nil
+				}
+				middle := from.Add(to.Sub(from) / 2)
+				log.Printf("[%v to %v] hit persistent Not Found error, dividing range at %v", from.Format(time.RFC3339), to.Format(time.RFC3339), middle.Format(time.RFC3339))
+				leftFrom, leftTo := from, middle
+				rightFrom, rightTo := middle, to
+				leftKeys, leftCount, err := search(leftFrom, leftTo)
+				if err != nil {
+					return nil, 0, err
+				}
+				log.Printf("[%v to %v] left half got %d keys for %v users", leftFrom.Format(time.RFC3339), leftTo.Format(time.RFC3339), len(leftKeys), leftCount)
+				rightKeys, rightCount, err := search(rightFrom, rightTo)
+				if err != nil {
+					return nil, 0, err
+				}
+				log.Printf("[%v to %v] right half got %d keys for %v users", rightFrom.Format(time.RFC3339), rightTo.Format(time.RFC3339), len(rightKeys), rightCount)
+				merged := make(map[string]uint64, len(leftKeys)+len(rightKeys))
+				maps.Insert(merged, maps.All(leftKeys))
+				maps.Insert(merged, maps.All(rightKeys))
+				return merged, leftCount + rightCount, nil
+			}
 			if retries >= 5 {
 				return nil, 0, err
 			}
 			retries++
 			s := retries * retries * retries
-			log.Printf("API error: %v; sleeping %d seconds...", err, s)
+			log.Printf("[%v to %v] API error: %v; sleeping %d seconds...", from.Format(time.RFC3339), to.Format(time.RFC3339), err, s)
 			time.Sleep(time.Duration(s) * time.Second)
 			continue
 		}
